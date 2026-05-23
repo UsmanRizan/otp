@@ -118,10 +118,9 @@ export default function PhoneScreen() {
     setError("");
 
     try {
-      const response = await postJson<SendOtpResponse>(
-        "/api/auth/send-otp",
-        { phone: trimmed },
-      );
+      const response = await postJson<SendOtpResponse>("/api/auth/send-otp", {
+        phone: trimmed,
+      });
 
       if (response.passwordRequired) {
         router.push({ pathname: "/password", params: { phone: trimmed } });
