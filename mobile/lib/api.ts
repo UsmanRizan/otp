@@ -37,10 +37,11 @@ export const API_BASE_URL =
 export async function postJson<TResponse>(
   path: string,
   body: Record<string, unknown>,
+  headers: Record<string, string> = {},
 ): Promise<TResponse> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify(body),
   });
 

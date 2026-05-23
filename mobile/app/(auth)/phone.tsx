@@ -19,6 +19,7 @@ import { postJson } from "@/lib/api";
 
 type SendOtpResponse = {
   success: boolean;
+  passwordRequired?: boolean;
   message?: string;
 };
 
@@ -117,7 +118,16 @@ export default function PhoneScreen() {
     setError("");
 
     try {
-      await postJson<SendOtpResponse>("/api/auth/send-otp", { phone: trimmed });
+      const response = await postJson<SendOtpResponse>(
+        "/api/auth/send-otp",
+        { phone: trimmed },
+      );
+
+      if (response.passwordRequired) {
+        router.push({ pathname: "/password", params: { phone: trimmed } });
+        return;
+      }
+
       router.push({ pathname: "/otp", params: { phone: trimmed } });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send OTP.");

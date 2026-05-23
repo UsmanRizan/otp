@@ -16,21 +16,26 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Fonts } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { postJson } from "@/lib/api";
+import { setAuthSession } from "@/lib/auth";
 
-type VerifyOtpResponse = {
+type SetPasswordResponse = {
   success: boolean;
-  token?: string;
   message?: string;
 };
 
-export default function OtpScreen() {
+export default function SetPasswordScreen() {
   const params = useLocalSearchParams();
   const phoneParam = Array.isArray(params.phone)
     ? params.phone[0]
     : params.phone;
-  const phone = typeof phoneParam === "string" ? phoneParam : "";
+  const tokenParam = Array.isArray(params.token)
+    ? params.token[0]
+    : params.token;
 
-  const [otp, setOtp] = useState("");
+  const phone = typeof phoneParam === "string" ? phoneParam : "";
+  const token = typeof tokenParam === "string" ? tokenParam : "";
+
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
@@ -113,16 +118,14 @@ export default function OtpScreen() {
     ],
   };
 
-  const handleVerify = async () => {
-    const trimmedOtp = otp.trim();
-
-    if (!phone) {
-      setError("Missing phone number.");
+  const handleSavePassword = async () => {
+    if (!phone || !token) {
+      setError("Missing verification details.");
       return;
     }
 
-    if (!trimmedOtp) {
-      setError("Enter the 6-digit code.");
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
       return;
     }
 
@@ -130,30 +133,31 @@ export default function OtpScreen() {
     setError("");
 
     try {
-      const response = await postJson<VerifyOtpResponse>(
-        "/api/auth/verify-otp",
+      const response = await postJson<SetPasswordResponse>(
+        "/api/auth/set-password",
         {
-          phone,
-          otp: trimmedOtp,
+          password,
+        },
+        {
+          Authorization: `Bearer ${token}`,
         },
       );
 
-      if (!response.token) {
-        throw new Error("Verification succeeded, but no token was returned.");
+      if (!response.success) {
+        throw new Error(response.message ?? "Failed to save password.");
       }
 
-      router.replace({
-        pathname: "/set-password",
-        params: { phone, token: response.token },
-      });
+      await setAuthSession({ token, phone });
+      router.replace({ pathname: "/", params: { phone } });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to verify OTP.");
+      setError(err instanceof Error ? err.message : "Failed to save password.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const canSubmit = otp.trim().length > 0 && !isSubmitting && !!phone;
+  const canSubmit =
+    password.trim().length >= 6 && !isSubmitting && !!phone && !!token;
 
   return (
     <SafeAreaView
@@ -188,7 +192,7 @@ export default function OtpScreen() {
                 { color: palette.kicker, fontFamily: Fonts.mono },
               ]}
             >
-              Step 2 of 2
+              Step 3 of 3
             </Text>
             <Text
               style={[
@@ -196,12 +200,10 @@ export default function OtpScreen() {
                 { color: palette.text, fontFamily: Fonts.serif },
               ]}
             >
-              Enter the OTP
+              Set your password
             </Text>
             <Text style={[styles.subtitle, { color: palette.subtext }]}>
-              {phone
-                ? `We sent a code to ${phone}.`
-                : "We need your phone number to continue."}
+              Create a password to secure your account.
             </Text>
           </Animated.View>
 
@@ -218,24 +220,23 @@ export default function OtpScreen() {
                 { color: palette.text, fontFamily: Fonts.rounded },
               ]}
             >
-              6-digit code
+              Password
             </Text>
             <TextInput
-              value={otp}
+              value={password}
               onChangeText={(value) => {
-                setOtp(value);
+                setPassword(value);
                 if (error) {
                   setError("");
                 }
               }}
-              placeholder="------"
+              placeholder="Enter a password"
               placeholderTextColor={palette.subtext}
-              keyboardType="number-pad"
-              textContentType="oneTimeCode"
-              maxLength={6}
+              secureTextEntry
+              autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="done"
-              onSubmitEditing={canSubmit ? handleVerify : undefined}
+              onSubmitEditing={canSubmit ? handleSavePassword : undefined}
               style={[
                 styles.input,
                 {
@@ -252,7 +253,7 @@ export default function OtpScreen() {
               </Text>
             ) : null}
             <Pressable
-              onPress={handleVerify}
+              onPress={handleSavePassword}
               disabled={!canSubmit}
               style={({ pressed }) => [
                 styles.button,
@@ -270,14 +271,9 @@ export default function OtpScreen() {
                 <Text
                   style={[styles.buttonText, { color: palette.buttonText }]}
                 >
-                  Verify
+                  Save password
                 </Text>
               )}
-            </Pressable>
-            <Pressable onPress={() => router.replace("/phone")}>
-              <Text style={[styles.link, { color: palette.kicker }]}>
-                Change phone number
-              </Text>
             </Pressable>
           </Animated.View>
         </View>
@@ -357,9 +353,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 16,
     paddingHorizontal: 16,
-    fontSize: 20,
-    letterSpacing: 6,
-    textAlign: "center",
+    fontSize: 18,
   },
   error: {
     marginTop: 10,
@@ -375,11 +369,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     fontFamily: Fonts.rounded,
-  },
-  link: {
-    marginTop: 16,
-    fontSize: 14,
-    fontWeight: "600",
-    textAlign: "center",
   },
 });
